@@ -77,4 +77,23 @@ class PerpHunterAgent:
         logger.info("=" * 50)
         logger.info(f"PerpHunter | {'DRY RUN' if settings.agent.dry_run else 'LIVE'} | min_score={settings.agent.min_score}")
         logger.info("=" * 50)
-        runner = await start_server(memory=self.memory, per​​​​​​​​​​​​​​​​
+        runner = await start_server(memory=self.memory, perp=self.perp, events=self.events)
+        try:
+            await self.auth.login()
+            logger.info("Four.meme auth OK")
+        except Exception as e:
+            logger.warning(f"Auth failed: {e}")
+        asyncio.create_task(self.monitor.start())
+        try:
+            while True:
+                await broadcast({"type": "update", "data": {"stats": self.memory.get_stats(), "positions": self.perp.get_portfolio_summary()}})
+                await asyncio.sleep(5)
+        except KeyboardInterrupt:
+            self.monitor.stop()
+            await self.api.close()
+            await runner.cleanup()
+            self.memory.save()
+
+
+if __name__ == "__main__":
+    asyncio.run(PerpHunterAgent().run())
