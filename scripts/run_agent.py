@@ -67,8 +67,12 @@ class PerpHunterAgent:
         try: await self.auth.login(); logger.info("Four.meme auth OK")
         except Exception as e: logger.warning(f"Auth failed: {e}")
         asyncio.create_task(self.monitor.start())
-        try:
-            while True: await broadcast({"type":"update","data":{"stats":self.memory.get_stats(),"positions":self.perp.get_portfolio_summary()}}); await asyncio.sleep(5)
-        except KeyboardInterrupt: self.monitor.stop(); await self.api.close(); await runner.cleanup(); self.memory.save()
+    try:
+            while True:
+                await broadcast({"type": "update", "data": {"stats": self.memory.get_stats(), "positions": self.perp.get_portfolio_summary()}})
+                await asyncio.sleep(5)
+        except KeyboardInterrupt:
+            self.monitor.stop(); await self.api.close(); await runner.cleanup(); self.memory.save()
+
 
 if __name__ == "__main__": asyncio.run(PerpHunterAgent().run())
