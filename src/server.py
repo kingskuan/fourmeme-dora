@@ -1,4 +1,4 @@
-"""API Server — HTTP + WebSocket for dashboard."""
+"""API Server."""
 import json, logging, sys
 from pathlib import Path
 from datetime import datetime, timezone
@@ -11,28 +11,39 @@ from src.agent.monitor import EventBus
 
 logger = logging.getLogger("perphunter.server")
 _state = {"memory": None, "perp": None, "events": None}
-ws_clients = set()
+_ws_clients = set()
 
 async def broadcast(data):
-    msg = json.dumps(data); dead = set()
-    for ws in ws_clients:
+    msg = json.dumps(data)
+    dead = set()
+    for ws in _ws_clients:
         try: await ws.send_str(msg)
         except: dead.add(ws)
-    ws_clients -= dead
+    _ws_clients.difference_update(dead)
 
-async def handle_health(req): return web.json_response({"status": "ok"})
+async def handle_health(req):
+    return web.json_response({"status": "ok"})
+
 async def handle_dashboard(req):
     m, p, e = _state["memory"], _state["perp"], _state["events"]
     return web.json_response({"stats": m.get_stats() if m else {}, "scores": m.get_recent_scores(20) if m else [], "positions": p.get_portfolio_summary() if p else {}, "events": e.get_log(50) if e else []})
 
 async def handle_ws(req):
-    ws = web.WebSocketResponse(); await ws.prepare(req); ws_clients.add(ws)
+    ws = web.WebSocketResponse()
+    await ws.prepare(req)
+    _ws_clients.add(ws)
     m, p = _state.get("memory"), _state.get("perp")
-    if m and p: await ws.send_json({"type": "snapshot", "data": {"stats": m.get_stats(), "scores": m.get_recent_scores(20), "positions": p.get_portfolio_summary()}})
+    if m and p:
+        await ws.send_json({"type": "snapshot", "data": {"stats": m.get_stats(), "scores": m.get_recent_scores(20), "positions": p.get_portfolio_summary()}})
     try:
         async for msg in ws:
-            if msg.type == aiohttp.WSMsgType.TEXT and json.loads(msg.data).get("action") == "ping": await ws.send_json({"type": "pong"})
-    finally: ws_clients.discard(ws)
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                try:
+                    if json.loads(msg.data).get("action") == "ping":
+                        await ws.send_json({"type": "pong"})
+                except: pass
+    finally:
+        _ws_clients.discard(ws)
     return ws
 
 @web.middleware
@@ -50,6 +61,9 @@ def create_app(memory=None, perp=None, events=None, **kw):
     return app
 
 async def start_server(host="0.0.0.0", port=8420, **kw):
-    app = create_app(**kw); runner = web.AppRunner(app); await runner.setup()
+    app = create_app(**kw)
+    runner = web.AppRunner(app)
+    await runner.setup()
     await web.TCPSite(runner, host, port).start()
-    logger.info(f"Server at http://{host}:{port}"); return runner
+    logger.info(f"Server at http://{host}:{port}")
+    return runner
