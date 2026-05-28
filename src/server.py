@@ -162,7 +162,7 @@ async def handle_ws(req):
                 try:
                     if json.loads(msg.data).get("action") == "ping":
                         await ws.send_json({"type": "pong"})
-                except: pass
+                except Exception as e: logger.warning(f"WS message parse error: {e}")
     finally:
         _ws_clients.discard(ws)
     return ws

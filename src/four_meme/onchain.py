@@ -28,7 +28,8 @@ class BSCChain:
     async def buy_token(self, token_address, bnb_amount, slippage_pct=5.0):
         amount_in = self.w3.to_wei(bnb_amount, "ether")
         nonce = self.w3.eth.get_transaction_count(self.address)
-        params = {"tokenIn": Web3.to_checksum_address(WBNB), "tokenOut": Web3.to_checksum_address(token_address), "fee": 2500, "recipient": self.address, "amountIn": amount_in, "amountOutMinimum": 0, "sqrtPriceLimitX96": 0}
+        amount_out_min = int(amount_in * (1 - slippage_pct / 100))
+        params = {"tokenIn": Web3.to_checksum_address(WBNB), "tokenOut": Web3.to_checksum_address(token_address), "fee": 2500, "recipient": self.address, "amountIn": amount_in, "amountOutMinimum": amount_out_min, "sqrtPriceLimitX96": 0}
         tx = self.router.functions.exactInputSingle(params).build_transaction({"from": self.address, "value": amount_in, "nonce": nonce, "gas": 300000, "gasPrice": self.w3.eth.gas_price, "chainId": settings.bsc.chain_id})
         signed = self.account.sign_transaction(tx)
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -43,7 +44,8 @@ class BSCChain:
         nonce = self.w3.eth.get_transaction_count(self.address)
         approve_tx = token.functions.approve(Web3.to_checksum_address(PANCAKE_ROUTER_V3), sell_amount).build_transaction({"from": self.address, "nonce": nonce, "gas": 100000, "gasPrice": self.w3.eth.gas_price, "chainId": settings.bsc.chain_id})
         self.w3.eth.send_raw_transaction(self.account.sign_transaction(approve_tx).raw_transaction)
-        params = {"tokenIn": Web3.to_checksum_address(token_address), "tokenOut": Web3.to_checksum_address(WBNB), "fee": 2500, "recipient": self.address, "amountIn": sell_amount, "amountOutMinimum": 0, "sqrtPriceLimitX96": 0}
+        sell_amount_out_min = int(sell_amount * (1 - 5.0 / 100))
+        params = {"tokenIn": Web3.to_checksum_address(token_address), "tokenOut": Web3.to_checksum_address(WBNB), "fee": 2500, "recipient": self.address, "amountIn": sell_amount, "amountOutMinimum": sell_amount_out_min, "sqrtPriceLimitX96": 0}
         tx = self.router.functions.exactInputSingle(params).build_transaction({"from": self.address, "nonce": nonce+1, "gas": 300000, "gasPrice": self.w3.eth.gas_price, "chainId": settings.bsc.chain_id})
         tx_hash = self.w3.eth.send_raw_transaction(self.account.sign_transaction(tx).raw_transaction)
         logger.info(f"Sell tx: {tx_hash.hex()}")
