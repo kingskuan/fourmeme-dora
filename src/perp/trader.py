@@ -45,9 +45,9 @@ class PerpTrader:
         for pos in list(self.positions):
             p = prices.get(pos.token_address)
             if not p: continue
-            pnl = ((p - pos.entry_price) / pos.entry_price * 100) if pos.side == PositionSide.LONG else ((pos.entry_price - p) / pos.entry_price * 100)
-            pos.current_pnl_pct = round(pnl * pos.leverage, 2)
-            if (pos.side == PositionSide.LONG and p <= pos.stop_loss_price) or (pos.side == PositionSide.LONG and p >= pos.take_profit_price):
+            pnl = ((p - pos.entry_price) / pos.entry_price * 100 * pos.leverage) if pos.side == PositionSide.LONG else ((pos.entry_price - p) / pos.entry_price * 100 * pos.leverage)
+            pos.current_pnl_pct = round(pnl, 2)
+            if (pos.side == PositionSide.LONG and (p <= pos.stop_loss_price or p >= pos.take_profit_price)) or (pos.side == PositionSide.SHORT and (p >= pos.stop_loss_price or p <= pos.take_profit_price)):
                 pos.status = "closed"; self.positions.remove(pos); self.closed.append(pos)
 
     def get_portfolio_summary(self):

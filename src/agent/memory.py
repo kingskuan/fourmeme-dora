@@ -1,5 +1,5 @@
 """Agent memory — persistent state."""
-import json, logging
+import json, logging, tempfile, os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,7 +10,20 @@ class AgentMemory:
         self.path = path; self.path.parent.mkdir(parents=True, exist_ok=True)
         self.data = json.loads(self.path.read_text()) if self.path.exists() else {"launches_seen":0,"launches_acted":0,"total_pnl_bnb":0.0,"positions":[],"scored_tokens":[],"trade_history":[],"marketing_posts":[]}
 
-    def save(self): self.path.write_text(json.dumps(self.data, indent=2))
+    def save(self):
+        fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")
+        closed = False
+        try:
+            os.write(fd, json.dumps(self.data, indent=2).encode())
+            os.fsync(fd); os.close(fd); closed = True
+            os.replace(tmp, self.path)
+        except BaseException:
+            if not closed:
+                try: os.close(fd)
+                except OSError: pass
+            try: os.unlink(tmp)
+            except OSError: pass
+            raise
 
     def record_score(self, d):
         self.data["launches_seen"] += 1
